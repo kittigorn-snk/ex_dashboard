@@ -2,88 +2,117 @@ import {
   BedDouble,
   CalendarDays,
   Stethoscope,
-  TrendingDown,
   TrendingUp,
   Users,
   type LucideIcon,
 } from "lucide-react";
 
-import WeeklyOpdChart from "@/components/admin/WeeklyOpdChart";
+import WeeklyOpdChart, { type WeeklyOpdPoint } from "@/components/admin/WeeklyOpdChart";
 import { dbTypeLabel } from "@/lib/db/config";
 import { checkDbHealth } from "@/lib/db/health";
+import { formatTime } from "@/lib/format";
+import {
+  getAdmittedCount,
+  getOfficerCount,
+  getRecentActivities,
+  getTodayAppointmentsCount,
+  getTodayOpdCount,
+  getWeeklyOpd,
+  type WeeklyOpdRow,
+} from "@/lib/queries/opd";
 
-const stats: {
-  label: string;
-  value: string;
-  change: string;
-  positive: boolean;
-  iconBg: string;
-  iconColor: string;
-  icon: LucideIcon;
-}[] = [
-  {
-    label: "ผู้ป่วยวันนี้",
-    value: "128",
-    change: "+12%",
-    positive: true,
-    iconBg: "bg-primary-500/15",
-    iconColor: "text-primary-500",
-    icon: Users,
-  },
-  {
-    label: "นัดหมาย",
-    value: "45",
-    change: "+5%",
-    positive: true,
-    iconBg: "bg-red-500/15",
-    iconColor: "text-red-600 dark:text-red-400",
-    icon: CalendarDays,
-  },
-  {
-    label: "เตียงว่าง",
-    value: "23",
-    change: "-3%",
-    positive: false,
-    iconBg: "bg-emerald-500/15",
-    iconColor: "text-emerald-500",
-    icon: BedDouble,
-  },
-  {
-    label: "บุคลากร",
-    value: "89",
-    change: "0%",
-    positive: true,
-    iconBg: "bg-amber-500/15",
-    iconColor: "text-amber-500",
-    icon: Stethoscope,
-  },
-];
+const THAI_DAY_SHORT = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"] as const;
 
-const recentActivities = [
-  { time: "09:30", text: "ลงทะเบียนผู้ป่วยใหม่ HN 680001234" },
-  { time: "10:15", text: "นัดหมายตรวจผู้ป่วยนอก 15 ราย" },
-  { time: "11:00", text: "รายงานสรุปยอดผู้ป่วยประจำวัน" },
-  { time: "13:45", text: "อัปเดตข้อมูลเตียง ICU คงเหลือ 3 เตียง" },
-];
-
-/** Mock OPD รายวัน — แทนที่ด้วย query ovst เมื่อเชื่อม DB แล้ว */
-const weeklyOpd = [
-  { day: "จ", label: "จันทร์", count: 98 },
-  { day: "อ", label: "อังคาร", count: 112 },
-  { day: "พ", label: "พุธ", count: 105 },
-  { day: "พฤ", label: "พฤหัส", count: 128 },
-  { day: "ศ", label: "ศุกร์", count: 142 },
-  { day: "ส", label: "เสาร์", count: 85 },
-  { day: "อา", label: "อาทิตย์", count: 52 },
-];
-
-const weeklyTotal = weeklyOpd.reduce((sum, d) => sum + d.count, 0);
-const weeklyAvg = Math.round(weeklyTotal / weeklyOpd.length);
-const weeklyPeak = weeklyOpd.reduce((max, d) => (d.count > max.count ? d : max));
-const weeklyChange = "+8.2%";
+function toWeeklyChartData(rows: WeeklyOpdRow[]): WeeklyOpdPoint[] {
+  return rows.map((row) => {
+    const date = row.day instanceof Date ? row.day : new Date(String(row.day));
+    const dayShort = THAI_DAY_SHORT[date.getDay()] ?? "?";
+    const label = date.toLocaleDateString("th-TH", {
+      weekday: "long",
+      day: "numeric",
+      month: "short",
+    });
+    return { day: dayShort, label, count: Number(row.count) };
+  });
+}
 
 export default async function DashboardPage() {
   const dbHealth = await checkDbHealth();
+
+  let todayOpd = 0;
+  let todayAppointments = 0;
+  let admitted = 0;
+  let officers = 0;
+  let weeklyOpd: WeeklyOpdPoint[] = [];
+  let recentActivities: { time: string; text: string }[] = [];
+  let dataError: string | null = null;
+
+  try {
+    const [opd, appt, ipd, off, weekly, activities] = await Promise.all([
+      getTodayOpdCount(),
+      getTodayAppointmentsCount(),
+      getAdmittedCount(),
+      getOfficerCount(),
+      getWeeklyOpd(),
+      getRecentActivities(10),
+    ]);
+
+    todayOpd = opd;
+    todayAppointments = appt;
+    admitted = ipd;
+    officers = off;
+    weeklyOpd = toWeeklyChartData(weekly);
+    recentActivities = activities.map((a) => ({
+      time: formatTime(a.time),
+      text: a.text,
+    }));
+  } catch {
+    dataError = "ไม่สามารถดึงข้อมูลจากฐานข้อมูลได้";
+  }
+
+  const stats: {
+    label: string;
+    value: string;
+    iconBg: string;
+    iconColor: string;
+    icon: LucideIcon;
+  }[] = [
+    {
+      label: "ผู้ป่วยวันนี้",
+      value: todayOpd.toLocaleString("th-TH"),
+      iconBg: "bg-primary-500/15",
+      iconColor: "text-primary-500",
+      icon: Users,
+    },
+    {
+      label: "นัดหมาย",
+      value: todayAppointments.toLocaleString("th-TH"),
+      iconBg: "bg-red-500/15",
+      iconColor: "text-red-600 dark:text-red-400",
+      icon: CalendarDays,
+    },
+    {
+      label: "ผู้ป่วยใน (Admit)",
+      value: admitted.toLocaleString("th-TH"),
+      iconBg: "bg-emerald-500/15",
+      iconColor: "text-emerald-500",
+      icon: BedDouble,
+    },
+    {
+      label: "บุคลากร",
+      value: officers.toLocaleString("th-TH"),
+      iconBg: "bg-amber-500/15",
+      iconColor: "text-amber-500",
+      icon: Stethoscope,
+    },
+  ];
+
+  const weeklyTotal = weeklyOpd.reduce((sum, d) => sum + d.count, 0);
+  const weeklyAvg = weeklyOpd.length > 0 ? Math.round(weeklyTotal / weeklyOpd.length) : 0;
+  const weeklyPeak =
+    weeklyOpd.length > 0
+      ? weeklyOpd.reduce((max, d) => (d.count > max.count ? d : max))
+      : { label: "-", count: 0 };
 
   return (
     <div className="space-y-6">
@@ -105,10 +134,15 @@ export default async function DashboardPage() {
         </div>
       </div>
 
+      {dataError && (
+        <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400">
+          {dataError}
+        </p>
+      )}
+
       <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
         {stats.map((stat) => {
           const Icon = stat.icon;
-          const TrendIcon = stat.positive ? TrendingUp : TrendingDown;
 
           return (
             <div key={stat.label} className="glass-card p-5">
@@ -118,12 +152,6 @@ export default async function DashboardPage() {
                 >
                   <Icon className={`h-5 w-5 ${stat.iconColor}`} strokeWidth={2} />
                 </div>
-                <span
-                  className={`flex items-center gap-0.5 text-xs font-bold ${stat.positive ? "text-emerald-500" : "text-red-500"}`}
-                >
-                  <TrendIcon className="h-3.5 w-3.5" strokeWidth={2.5} />
-                  {stat.change}
-                </span>
               </div>
               <p className="mt-4 text-sm font-medium text-muted">{stat.label}</p>
               <p className="mt-1 text-3xl font-bold text-foreground">{stat.value}</p>
@@ -141,10 +169,6 @@ export default async function DashboardPage() {
                 <p className="text-3xl font-bold text-foreground">
                   {weeklyTotal.toLocaleString("th-TH")}
                 </p>
-                <span className="flex items-center gap-1 text-sm font-bold text-emerald-500">
-                  <TrendingUp className="h-4 w-4" strokeWidth={2.5} />
-                  {weeklyChange} จากสัปดาห์ก่อน
-                </span>
               </div>
               <p className="mt-1 text-sm text-muted">
                 เฉลี่ย {weeklyAvg.toLocaleString("th-TH")} ราย/วัน · สูงสุด {weeklyPeak.label}{" "}
@@ -152,11 +176,15 @@ export default async function DashboardPage() {
               </p>
             </div>
             <span className="glass-input rounded-full px-4 py-1.5 text-xs font-medium text-muted">
-              สัปดาห์นี้
+              7 วันล่าสุด
             </span>
           </div>
 
-          <WeeklyOpdChart data={weeklyOpd} />
+          {weeklyOpd.length > 0 ? (
+            <WeeklyOpdChart data={weeklyOpd} />
+          ) : (
+            <p className="py-8 text-center text-sm text-muted">ไม่มีข้อมูล OPD รายสัปดาห์</p>
+          )}
         </div>
 
         <div className="glass-card p-6">
@@ -171,7 +199,9 @@ export default async function DashboardPage() {
                   <p className="text-sm font-bold text-foreground">
                     HosXP — {dbTypeLabel(dbHealth.type)}
                   </p>
-                  <p className="text-xs text-muted">ฐานข้อมูลหลัก ({dbHealth.type === "mysql" ? "my" : "pg"})</p>
+                  <p className="text-xs text-muted">
+                    ฐานข้อมูลหลัก ({dbHealth.type === "mysql" ? "my" : "pg"})
+                  </p>
                 </div>
                 <span
                   className={`rounded-full px-3 py-1 text-xs font-bold ${
@@ -190,14 +220,20 @@ export default async function DashboardPage() {
 
       <div className="glass-card p-6">
         <h2 className="text-lg font-bold text-foreground">กิจกรรมล่าสุด</h2>
-        <p className="mb-4 text-sm text-muted">เหตุการณ์ในระบบวันนี้</p>
+        <p className="mb-4 text-sm text-muted">ผู้ป่วยนอกวันนี้ (ล่าสุด 10 ราย)</p>
         <div className="divide-y divide-[var(--divider)]">
-          {recentActivities.map((activity) => (
-            <div key={activity.time} className="flex gap-4 py-3">
-              <span className="shrink-0 text-sm font-bold text-primary-500">{activity.time}</span>
-              <span className="text-sm text-muted">{activity.text}</span>
-            </div>
-          ))}
+          {recentActivities.length === 0 ? (
+            <p className="py-4 text-sm text-muted">ไม่พบกิจกรรมวันนี้</p>
+          ) : (
+            recentActivities.map((activity, i) => (
+              <div key={`${activity.time}-${i}`} className="flex gap-4 py-3">
+                <span className="shrink-0 text-sm font-bold text-primary-500">
+                  {activity.time}
+                </span>
+                <span className="text-sm text-muted">{activity.text}</span>
+              </div>
+            ))
+          )}
         </div>
       </div>
     </div>

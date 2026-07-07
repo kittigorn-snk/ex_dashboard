@@ -1,5 +1,7 @@
 "use client";
 
+import LogoutButton from "@/components/admin/LogoutButton";
+import type { SessionData } from "@/lib/auth/session";
 import {
   CalendarDays,
   FileText,
@@ -19,7 +21,15 @@ const navItems: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/settings", label: "ตั้งค่า", icon: Settings },
 ];
 
-export default function Sidebar() {
+function userInitials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) {
+    return (parts[0][0] ?? "") + (parts[1][0] ?? "");
+  }
+  return name.slice(0, 2);
+}
+
+export default function Sidebar({ user }: { user: SessionData | null }) {
   const pathname = usePathname();
 
   return (
@@ -63,12 +73,17 @@ export default function Sidebar() {
         <div className="rounded-2xl bg-[var(--input-bg)] p-3">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-500 text-xs font-bold text-white">
-              ผอ
+              {user ? userInitials(user.name) : "?"}
             </div>
             <div className="min-w-0">
-              <p className="truncate text-sm font-bold text-foreground">ผู้ดูแลระบบ</p>
-              <p className="truncate text-xs text-muted">admin@hosxp.local</p>
+              <p className="truncate text-sm font-bold text-foreground">
+                {user?.name ?? "ผู้ใช้"}
+              </p>
+              <p className="truncate text-xs text-muted">{user?.loginName ?? "-"}</p>
             </div>
+          </div>
+          <div className="mt-3">
+            <LogoutButton />
           </div>
         </div>
         <p className="mt-3 text-center text-xs text-muted">เวอร์ชัน 1.0.0</p>

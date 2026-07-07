@@ -1,9 +1,17 @@
-import { Bell, Search } from "lucide-react";
-
 import DbConnectionStatus from "@/components/admin/DbConnectionStatus";
 import ThemeToggle from "@/components/admin/ThemeToggle";
+import type { SessionData } from "@/lib/auth/session";
+import { Bell, Search } from "lucide-react";
 
-export default function Header() {
+function userInitials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) {
+    return (parts[0][0] ?? "") + (parts[1][0] ?? "");
+  }
+  return name.slice(0, 2);
+}
+
+export default function Header({ user }: { user: SessionData | null }) {
   return (
     <header className="glass-header flex h-[61px] w-full items-center justify-between gap-3 px-3 sm:gap-4 sm:px-4">
       <div className="relative hidden min-w-0 flex-1 md:block">
@@ -29,13 +37,13 @@ export default function Header() {
           aria-label="การแจ้งเตือน"
         >
           <Bell className="h-5 w-5" strokeWidth={2} />
-          <span className="absolute right-1.5 top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
-            3
-          </span>
         </button>
 
-        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-foreground text-sm font-bold text-white">
-          ผอ
+        <div
+          className="flex h-10 w-10 items-center justify-center rounded-full bg-foreground text-sm font-bold text-white"
+          title={user?.name}
+        >
+          {user ? userInitials(user.name) : "?"}
         </div>
       </div>
     </header>
