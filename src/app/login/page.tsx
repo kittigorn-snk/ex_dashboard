@@ -11,7 +11,7 @@ export default function LoginPage() {
             H
           </div>
           <h1 className="text-2xl font-bold text-foreground">HosXP Admin</h1>
-          <p className="mt-2 text-sm text-muted">เข้าสู่ระบบด้วยบัญชี HosXP (opduser)</p>
+          <p className="mt-2 text-sm text-muted">เข้าสู่ระบบด้วยบัญชี HosXP (officer)</p>
         </div>
 
         <div className="glass-card p-8">

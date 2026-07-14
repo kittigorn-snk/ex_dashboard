@@ -49,7 +49,9 @@ export default function Sidebar({ user }: { user: SessionData | null }) {
       <nav className="flex-1 space-y-1 overflow-y-auto px-4 py-2">
         <p className="mb-2 px-3 text-xs font-bold uppercase tracking-wider text-muted">เมนูหลัก</p>
         {navItems.map((item) => {
-          const isActive = pathname === item.href;
+          const isActive =
+            pathname === item.href ||
+            (item.href !== "/" && pathname.startsWith(`${item.href}/`));
           const Icon = item.icon;
 
           return (

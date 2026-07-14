@@ -1,6 +1,6 @@
 import crypto from "crypto";
 
-/** HosXP stores web passwords as MD5 in opduser.passweb (typically uppercase) */
+/** HosXP stores web passwords as MD5 (officer.officer_login_password_md5, uppercase hex) */
 export function hashMd5Password(password: string): string {
   return crypto.createHash("md5").update(password).digest("hex").toUpperCase();
 }
